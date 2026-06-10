@@ -1,0 +1,16 @@
+{
+  "xsappname": "sap-translator",
+  "tenant-mode": "dedicated",
+  "description": "Authentication only — no scopes / role-templates / role-collections. XSUAA proves identity; SAP enforces actual read/write/translate rights via principal propagation. Users need NO BTP role collection.",
+  "oauth2-configuration": {
+    "redirect-uris": [
+      "http://localhost:*/**",
+      "https://*.hana.ondemand.com/**",
+      "https://*.applicationstudio.cloud.sap/**",
+      "https://claude.ai/api/mcp/auth_callback",
+      "cursor://anysphere.cursor-retrieval/**",
+      "cursor://anysphere.cursor-mcp/**",
+      "vscode://vscode.microsoft-authentication/**"
+    ]
+  }
+}

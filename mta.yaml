@@ -1,0 +1,80 @@
+_schema-version: '3.1'
+ID: sap-translator
+description: MCP Server for SAP object translation
+version: 0.1.0
+
+modules:
+  - name: sap-translator-mcp
+    type: nodejs
+    path: .
+    parameters:
+      memory: 256M
+      disk-quota: 512M
+      health-check-type: http
+      health-check-http-endpoint: /health
+      # Dynamic route: sap-translator-<space>.cfapps.<region>.hana.ondemand.com
+      routes:
+        - route: sap-translator-${space}.${default-domain}
+    properties:
+      # ── Transport ──────────────────────────────────────────────────────────
+      MCP_TRANSPORT: http-streamable
+      LOG_FORMAT: json
+      LOG_LEVEL: info
+      # ── SAP service path ───────────────────────────────────────────────────
+      # Set this to the ICF path of your zi18n_service SICF node.
+      # Example values:
+      #   /sap/bc/http/sap/zi18n_service   ← classic ICF handler
+      SAP_I18N_SERVICE_PATH: /sap/bc/http/sap/zi18n_service
+      # ── BTP Destinations ──────────────────────────────────────────────────
+      # BasicAuth destination — used for system-level calls (list languages, etc.)
+      # and as fallback when no user JWT is present (stdio transport, API keys).
+      SAP_BTP_DESTINATION: SAP_SYSTEM_TECH_SBX
+      SAP_BTP_PP_DESTINATION: SAP_SYSTEM_SSO_SBX
+    requires:
+      - name: sap-translator-xsuaa
+      - name: sap-translator-destination
+      - name: sap-translator-connectivity
+      - name: sap-translator-logs
+    build-parameters:
+      builder: custom
+      commands:
+        - npm ci
+        - npm run build
+        - npm prune --omit=dev
+      build-result: .
+      ignore:
+        - .env
+        - .env.example
+        - src/
+        - "*.log"
+        - mta_archives/
+        - .git/
+        - .claude/
+      supported-platforms:
+        - cf
+
+resources:
+  - name: sap-translator-xsuaa
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: xsuaa
+      service-plan: application
+      path: ./xs-security.json
+
+  - name: sap-translator-destination
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: destination
+      service-plan: lite
+
+  - name: sap-translator-connectivity
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: connectivity
+      service-plan: lite
+
+  - name: sap-translator-logs
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: application-logs
+      service-plan: lite
