@@ -239,4 +239,9 @@ Architecture, auth proxy and BTP connectivity patterns are modeled on **[ARC-1](
 
 ## License
 
-See repository license.
+[MIT](./LICENSE) © 2026 Clément Ringot.
+
+Portions (the XSUAA OAuth proxy, stateless DCR store, OAuth state codec and BTP
+connectivity layer) are derived from **[ARC-1](https://github.com/marianfoo/arc-1)**
+and used under its MIT License — see the [`LICENSE`](./LICENSE) file for the
+preserved upstream copyright.

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `LICENSE` (MIT) with the project copyright and preserved upstream attribution
+  for the ARC-1-derived modules; `license` field in `package.json`.
+
 ## [0.2.0] — 2026-06-11
 
 ### Added
