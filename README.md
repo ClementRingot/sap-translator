@@ -6,6 +6,8 @@
 
 It is built the same way as [**ARC-1**](https://github.com/marianfoo/arc-1) (same XSUAA auth proxy, same BTP connectivity model, same Express/MCP-SDK transport), but instead of the full ADT toolset it exposes **5 focused translation tools** backed by a small ABAP HTTP service that wraps SAP's [XCO i18n APIs](https://help.sap.com/docs/abap-cloud/abap-development-tools-user-guide/internationalization-i18n).
 
+> **Deployment target:** `sap-translator` is designed to run on **SAP BTP (Cloud Foundry)** — that is the primary, supported way to use it (XSUAA login + principal propagation to SAP). Running it **locally** is fully supported too, but it is meant for **development and testing**, not production. The two paths are [Part 2 (BTP)](#part-2--deploy-to-sap-btp-recommended) and [Part 3 (local)](#part-3--run-locally-development--testing) below.
+
 ---
 
 ## How it works
@@ -79,7 +81,43 @@ Import them (abapGit, or via ADT in the order above), create an ABAP **HTTP serv
 
 ---
 
-## Part 2 — Run the MCP server
+## Part 2 — Deploy to SAP BTP (recommended)
+
+This is the **main way to run `sap-translator`**. It deploys to Cloud Foundry as an MTA and uses **XSUAA for authentication only** — there are **no scopes, role templates or role collections**. XSUAA proves the caller's identity; the JWT is propagated to SAP (principal propagation via the Destination + Connectivity services), and **SAP's own authorization objects** decide what each user may read, write or translate. Every authenticated user gets all 5 tools.
+
+```bash
+npm install
+npm run build
+mbt build           # produces mta_archives/sap-translator_0.1.0.mtar
+cf deploy mta_archives/sap-translator_0.1.0.mtar
+```
+
+Then set the DCR signing secret (one-off) and point your MCP client at the deployed URL:
+
+```bash
+cf set-env sap-translator-mcp SAP_TRANSLATOR_DCR_SIGNING_SECRET "$(openssl rand -hex 32)"
+cf restage sap-translator-mcp
+```
+
+```json
+{
+  "mcpServers": {
+    "sap-translator": { "url": "https://sap-translator-<space>.<domain>/mcp" }
+  }
+}
+```
+
+The client is redirected through XSUAA login on first use; its identity is then propagated to SAP per call.
+
+👉 Full guide: **[docs: BTP deployment](./docs_page/btp-deployment.md)** · **[docs: authentication](./docs_page/authentication.md)** · the [`mta.yaml`](./mta.yaml) / [`xs-security.json`](./xs-security.json).
+
+> **Why `SAP_TRANSLATOR_DCR_SIGNING_SECRET`?** Without it the OAuth dynamic-client store signs with the XSUAA `clientsecret`, which `cf deploy` rotates — invalidating all cached MCP client registrations on every deploy. It's a secret, so it lives in `cf set-env`, not `mta.yaml`.
+
+---
+
+## Part 3 — Run locally (development & testing)
+
+For local development you connect **directly** to SAP (BasicAuth) — no BTP services involved. This path is for trying things out and developing the server; **production should run on BTP** (Part 2).
 
 ```bash
 git clone <this-repo>
@@ -91,7 +129,7 @@ npm run dev               # tsx src/index.ts  (hot dev)
 npm run build && npm start
 ```
 
-Minimum local-dev `.env`:
+Minimum local `.env`:
 
 ```bash
 SAP_URL=https://your-abap-system.example.com
@@ -105,21 +143,17 @@ PORT=8080
 
 By default the server starts an HTTP-streamable MCP endpoint on `http://localhost:8080/mcp` with a `/health` probe.
 
-### Connect an MCP client
-
-**HTTP (Claude web/desktop, Cursor, VS Code):**
+**Connect an MCP client over HTTP** (Claude web/desktop, Cursor, VS Code):
 
 ```json
 {
   "mcpServers": {
-    "sap-translator": {
-      "url": "http://localhost:8080/mcp"
-    }
+    "sap-translator": { "url": "http://localhost:8080/mcp" }
   }
 }
 ```
 
-**stdio (local-only, no auth):** set `MCP_TRANSPORT=stdio` and launch the built server directly:
+**Or over stdio** (local-only, no auth) — set `MCP_TRANSPORT=stdio` and launch the built server directly:
 
 ```json
 {
@@ -133,21 +167,7 @@ By default the server starts an HTTP-streamable MCP endpoint on `http://localhos
 }
 ```
 
----
-
-## BTP deployment
-
-`sap-translator` deploys to Cloud Foundry as an MTA. It uses **XSUAA for authentication only** — there are **no scopes, role templates or role collections**. XSUAA proves the caller's identity; the JWT is propagated to SAP (principal propagation via the Destination + Connectivity services), and **SAP's own authorization objects** decide what each user may read, write or translate. Every authenticated user gets all 5 tools.
-
-```bash
-npm run build
-mbt build           # produces mta_archives/sap-translator_0.1.0.mtar
-cf deploy mta_archives/sap-translator_0.1.0.mtar
-```
-
-👉 See **[docs: BTP deployment](./docs_page/btp-deployment.md)**, **[docs: authentication](./docs_page/authentication.md)**, and the [`mta.yaml`](./mta.yaml) / [`xs-security.json`](./xs-security.json).
-
-> **Deploy note:** set `SAP_TRANSLATOR_DCR_SIGNING_SECRET` on the CF app (`cf set-env`). Without it the OAuth dynamic-client store signs with the XSUAA `clientsecret`, which `cf deploy` rotates — invalidating all cached MCP client registrations on every deploy.
+> ⚠️ Local mode has **no XSUAA in front of it** — with no auth vars set the HTTP transport is open, and SAP calls use a single technical user instead of per-user principal propagation. Keep it on your machine; don't expose it. For anything shared or production-grade, use **BTP (Part 2)**.
 
 ---
 
