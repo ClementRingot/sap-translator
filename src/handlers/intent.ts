@@ -51,8 +51,10 @@ export function registerTranslationTools(server: McpServer, config: Config, user
     async (args) => {
       try {
         const texts = await client.listTexts({
-          object_type: args.object_type,
+          target_type: args.target_type,
           object_name: args.object_name,
+          language: args.language,
+          text_pool_owner_type: args.text_pool_owner_type,
         });
         return { content: [{ type: 'text', text: json(texts) }] };
       } catch (e) {
@@ -70,10 +72,16 @@ export function registerTranslationTools(server: McpServer, config: Config, user
     async (args) => {
       try {
         const result = await client.getTranslation({
-          object_type: args.object_type,
+          target_type: args.target_type,
           object_name: args.object_name,
           language: args.language,
           field_name: args.field_name,
+          fixed_value: args.fixed_value,
+          message_number: args.message_number,
+          text_symbol_id: args.text_symbol_id,
+          text_pool_owner_type: args.text_pool_owner_type,
+          subobject_name: args.subobject_name,
+          position: args.position,
         });
         return { content: [{ type: 'text', text: json(result) }] };
       } catch (e) {
@@ -91,10 +99,11 @@ export function registerTranslationTools(server: McpServer, config: Config, user
     async (args) => {
       try {
         const result = await client.compareTranslations({
-          object_type: args.object_type,
+          target_type: args.target_type,
           object_name: args.object_name,
           source_language: args.source_language,
           target_language: args.target_language,
+          position: args.position,
         });
         return { content: [{ type: 'text', text: json(result) }] };
       } catch (e) {
@@ -112,11 +121,18 @@ export function registerTranslationTools(server: McpServer, config: Config, user
     async (args) => {
       try {
         const result = await client.setTranslation({
-          object_type: args.object_type,
+          target_type: args.target_type,
           object_name: args.object_name,
           language: args.language,
           transport: args.transport,
           texts: args.texts,
+          field_name: args.field_name,
+          fixed_value: args.fixed_value,
+          message_number: args.message_number,
+          text_symbol_id: args.text_symbol_id,
+          text_pool_owner_type: args.text_pool_owner_type,
+          subobject_name: args.subobject_name,
+          position: args.position,
         });
         return { content: [{ type: 'text', text: json(result) }] };
       } catch (e) {

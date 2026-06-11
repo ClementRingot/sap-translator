@@ -1,20 +1,27 @@
 /**
- * HTTP client for zi18n_service.
+ * HTTP client for zi18n_service (ABAP handler class ZCL_I18N_SERVICE).
  *
  * The service must be registered in SICF (transaction) on the SAP system.
  * By default the path is /sap/bc/http/sap/zi18n_service but it is overridable
  * via the SAP_I18N_SERVICE_PATH env var.
  *
- * Expected HTTP contract (adjust to match your ABAP implementation):
+ * Wire contract — mirrors ZCL_I18N_SERVICE exactly:
+ *   - The ACTION is the last segment of the URL path (handler reads `~path_info`),
+ *     lowercase: list_languages | get_translation | set_translation | list_texts |
+ *     compare_translations.
+ *   - ALL parameters are sent in the JSON request BODY (handler reads `request->get_text()`
+ *     and string-matches "name":"value"). We therefore POST every action with a JSON body.
+ *   - Object kinds are the XCO semantic `target_type` literals (data_element, domain, …).
+ *   - Every response is wrapped: { "success": true, "data": {…} } on success, or
+ *     { "success": false, "error": { "code", "message" } } with HTTP 400 on failure.
  *
- *   GET  {path}?action=LIST_LANGUAGES
- *   GET  {path}?action=GET_TRANSLATION&object_type=CLAS&object_name=ZCL_MY&language=DE
- *   POST {path}?action=SET_TRANSLATION
- *        body: { object_type, object_name, language, transport, texts: [{key,value},...] }
- *   GET  {path}?action=LIST_TEXTS&object_type=CLAS&object_name=ZCL_MY
- *   GET  {path}?action=COMPARE&object_type=CLAS&object_name=ZCL_MY&source_language=EN&target_language=DE
- *
- * All responses are expected to be JSON.
+ *   POST {path}/list_languages       body: {}
+ *   POST {path}/get_translation      body: { target_type, object_name, language, … }
+ *   POST {path}/set_translation      body: { target_type, object_name, language, transport,
+ *                                            texts: [{ attribute, value }, …], … }
+ *   POST {path}/list_texts           body: { target_type, object_name, language? }
+ *   POST {path}/compare_translations body: { target_type, object_name, source_language,
+ *                                            target_language }
  */
 
 import { Client, type Dispatcher, fetch as undiciFetch } from 'undici';
@@ -28,37 +35,80 @@ import {
   parseVCAPServices,
 } from './btp.js';
 
-// ─── Response types ───────────────────────────────────────────────────────────
+// ─── Response types (match ZCL_I18N_SERVICE JSON exactly) ──────────────────────
 
-export interface SapLanguage {
-  spras: string; // SAP language key (1 char)
-  iso: string; // ISO 639-1 code
-  description: string;
+/** Envelope every handler wraps its payload in (build_success / build_error). */
+interface SapEnvelope<T> {
+  success: boolean;
+  data?: T;
+  error?: { code: string; message: string };
 }
 
-export interface TranslationText {
-  key: string; // text key / field name / message number
-  source: string; // original text (source language)
-  translation: string; // translated text (target language), empty if missing
-  type?: string; // SHORT | MEDIUM | LONG | HEADING for data elements
+export interface SapLanguage {
+  sap_code: string; // SAP language key (SPRAS, 1 char)
+  iso_code: string; // ISO 639-1 code
+  name: string; // language name
+}
+
+/** A single XCO text attribute/value pair (append_text_entry). */
+export interface TextEntry {
+  attribute: string;
+  value: string;
+}
+
+/** list_texts entries carry extra level/field context (build_text_json_entry). */
+export interface ListTextEntry extends TextEntry {
+  level: string; // 'entity' | 'field' | …
+  field_name: string; // empty for entity-level texts
 }
 
 export interface TranslationResult {
-  object_type: string;
+  target_type: string;
   object_name: string;
   language: string;
-  texts: TranslationText[];
+  texts: TextEntry[];
+}
+
+export interface ListTextsResult {
+  target_type: string;
+  object_name: string;
+  language: string;
+  texts: ListTextEntry[];
+}
+
+export interface SetTranslationResult {
+  target_type: string;
+  object_name: string;
+  language: string;
+  transport: string;
+  success: boolean;
+}
+
+/** One comparison row: a field/key with its source and target texts. */
+export interface ComparisonItem {
+  field_or_key: string;
+  source_texts: TextEntry[];
+  target_texts: TextEntry[];
+  has_difference: boolean;
 }
 
 export interface ComparisonResult {
-  object_type: string;
+  target_type: string;
   object_name: string;
   source_language: string;
   target_language: string;
-  total: number;
-  translated: number;
-  missing: number;
-  texts: TranslationText[];
+  items: ComparisonItem[];
+}
+
+/** Optional selectors the handler reads to disambiguate sub-objects within a target. */
+export interface I18nSelectors {
+  field_name?: string;
+  fixed_value?: string;
+  message_number?: string;
+  text_symbol_id?: string;
+  text_pool_owner_type?: string;
+  subobject_name?: string;
+  position?: string;
 }
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
@@ -227,27 +277,48 @@ async function sapRequest(conn: ResolvedConnection, method: string, url: string,
   return { status: resp.status, body: await resp.text() };
 }
 
-async function httpGet<T>(conn: ResolvedConnection, path: string, params: Record<string, string>): Promise<T> {
-  const url = buildUrl(conn.baseUrl, path, params);
-  const { status, body } = await sapRequest(conn, 'GET', url);
-  if (status < 200 || status >= 300) {
-    throw new Error(`SAP HTTP ${status}: ${body.slice(0, 300)}`);
+/** Drop undefined/empty fields so we only send what the handler should parse. */
+function compact(body: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(body)) {
+    if (v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0)) out[k] = v;
   }
-  return JSON.parse(body) as T;
+  return out;
 }
 
-async function httpPost<T>(
+/**
+ * POST an action to {servicePath}/{action} with a JSON body and unwrap the
+ * { success, data, error } envelope. The ABAP action is the last path segment,
+ * so it must be lowercase (list_languages, get_translation, …).
+ */
+async function callAction<T>(
   conn: ResolvedConnection,
-  path: string,
-  params: Record<string, string>,
-  body: unknown,
+  servicePath: string,
+  action: string,
+  body: Record<string, unknown>,
 ): Promise<T> {
-  const url = buildUrl(conn.baseUrl, path, params);
-  const { status, body: respBody } = await sapRequest(conn, 'POST', url, JSON.stringify(body));
-  if (status < 200 || status >= 300) {
-    throw new Error(`SAP HTTP ${status}: ${respBody.slice(0, 300)}`);
+  // sap-client stays a query param — it is consumed by the ICF framework, not the handler.
+  const url = buildUrl(conn.baseUrl, `${servicePath}/${action}`, {
+    ...(conn.sapClient ? { 'sap-client': conn.sapClient } : {}),
+  });
+  const { status, body: respBody } = await sapRequest(conn, 'POST', url, JSON.stringify(compact(body)));
+
+  let envelope: SapEnvelope<T>;
+  try {
+    envelope = JSON.parse(respBody) as SapEnvelope<T>;
+  } catch {
+    throw new Error(`SAP HTTP ${status}: non-JSON response: ${respBody.slice(0, 300)}`);
   }
-  return JSON.parse(respBody) as T;
+
+  if (!envelope.success || status < 200 || status >= 300) {
+    const code = envelope.error?.code ?? `HTTP_${status}`;
+    const message = envelope.error?.message ?? respBody.slice(0, 300);
+    throw new Error(`SAP i18n error [${code}]: ${message}`);
+  }
+  if (envelope.data === undefined) {
+    throw new Error('SAP i18n response had success=true but no data');
+  }
+  return envelope.data;
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -258,80 +329,60 @@ export class I18nClient {
     private readonly userJwt?: string,
   ) {}
 
+  private get path(): string {
+    return this.config.i18nServicePath;
+  }
+
   async listLanguages(): Promise<SapLanguage[]> {
     const conn = await resolveConnection(this.config, this.userJwt);
-    return httpGet<SapLanguage[]>(conn, this.config.i18nServicePath, {
-      action: 'LIST_LANGUAGES',
-      ...(conn.sapClient ? { 'sap-client': conn.sapClient } : {}),
-    });
+    const data = await callAction<{ languages: SapLanguage[] }>(conn, this.path, 'list_languages', {});
+    return data.languages;
   }
 
-  async getTranslation(params: {
-    object_type: string;
-    object_name: string;
-    language: string;
-    field_name?: string;
-  }): Promise<TranslationResult> {
+  async getTranslation(
+    params: {
+      target_type: string;
+      object_name: string;
+      language: string;
+    } & I18nSelectors,
+  ): Promise<TranslationResult> {
     const conn = await resolveConnection(this.config, this.userJwt);
-    return httpGet<TranslationResult>(conn, this.config.i18nServicePath, {
-      action: 'GET_TRANSLATION',
-      ...(conn.sapClient ? { 'sap-client': conn.sapClient } : {}),
-      object_type: params.object_type,
-      object_name: params.object_name,
-      language: params.language,
-      ...(params.field_name ? { field_name: params.field_name } : {}),
-    });
+    return callAction<TranslationResult>(conn, this.path, 'get_translation', { ...params });
   }
 
-  async setTranslation(params: {
-    object_type: string;
-    object_name: string;
-    language: string;
-    transport: string;
-    texts: Array<{ key: string; value: string }>;
-  }): Promise<{ success: boolean; message: string }> {
+  async setTranslation(
+    params: {
+      target_type: string;
+      object_name: string;
+      language: string;
+      transport: string;
+      texts: TextEntry[];
+    } & I18nSelectors,
+  ): Promise<SetTranslationResult> {
     const conn = await resolveConnection(this.config, this.userJwt);
-    return httpPost<{ success: boolean; message: string }>(
-      conn,
-      this.config.i18nServicePath,
-      { action: 'SET_TRANSLATION', 'sap-client': this.config.sapClient },
-      {
-        object_type: params.object_type,
-        object_name: params.object_name,
-        language: params.language,
-        transport: params.transport,
-        texts: params.texts,
-      },
-    );
+    return callAction<SetTranslationResult>(conn, this.path, 'set_translation', { ...params });
   }
 
-  async listTexts(params: {
-    object_type: string;
-    object_name: string;
-  }): Promise<TranslationText[]> {
+  async listTexts(
+    params: {
+      target_type: string;
+      object_name: string;
+      language?: string;
+      text_pool_owner_type?: string;
+    },
+  ): Promise<ListTextsResult> {
     const conn = await resolveConnection(this.config, this.userJwt);
-    return httpGet<TranslationText[]>(conn, this.config.i18nServicePath, {
-      action: 'LIST_TEXTS',
-      ...(conn.sapClient ? { 'sap-client': conn.sapClient } : {}),
-      object_type: params.object_type,
-      object_name: params.object_name,
-    });
+    return callAction<ListTextsResult>(conn, this.path, 'list_texts', { ...params });
   }
 
   async compareTranslations(params: {
-    object_type: string;
+    target_type: string;
     object_name: string;
     source_language: string;
     target_language: string;
+    position?: string;
   }): Promise<ComparisonResult> {
     const conn = await resolveConnection(this.config, this.userJwt);
-    return httpGet<ComparisonResult>(conn, this.config.i18nServicePath, {
-      action: 'COMPARE',
-      ...(conn.sapClient ? { 'sap-client': conn.sapClient } : {}),
-      object_type: params.object_type,
-      object_name: params.object_name,
-      source_language: params.source_language,
-      target_language: params.target_language,
-    });
+    return callAction<ComparisonResult>(conn, this.path, 'compare_translations', { ...params });
   }
 }
