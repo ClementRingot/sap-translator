@@ -2,7 +2,7 @@
  * Stateless OAuth Dynamic Client Registration store.
  *
  * Ported from arc-1 (ClementRingot/arc-1, src/server/stateless-client-store.ts),
- * adapted for sap-translator branding and its 3-scope model.
+ * adapted for sap-translator's authentication-only model (no XSUAA scopes).
  *
  * MCP clients (Claude Desktop, Cursor, Copilot CLI…) register dynamically
  * via RFC 7591 and cache the returned `client_id` locally. With an in-memory

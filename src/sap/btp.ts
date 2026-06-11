@@ -1,5 +1,5 @@
 /**
- * BTP Destination Service integration for ARC-1.
+ * BTP Destination Service integration.
  *
  * When running on SAP BTP Cloud Foundry, this module:
  * 1. Parses VCAP_SERVICES to extract service binding credentials
@@ -58,7 +58,7 @@ export interface Destination {
   CloudConnectorLocationId?: string;
 }
 
-/** Proxy configuration for undici ProxyAgent — used by AdtHttpClient */
+/** Proxy configuration for routing requests through the Cloud Connector */
 export interface BTPProxyConfig {
   host: string;
   port: number;
@@ -338,7 +338,7 @@ export async function lookupDestinationWithUserToken(
     throw new Error(`Destination Service (per-user) returned no destination for '${destinationName}'`);
   }
 
-  // Map SDK Destination → ARC-1 Destination type
+  // Map SDK Destination → local Destination type
   const dest: Destination = {
     Name: sdkDest.name ?? destinationName,
     URL: sdkDest.url ?? '',

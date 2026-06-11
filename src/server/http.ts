@@ -22,6 +22,7 @@ import { getLogger, requestContext } from './logger.js';
 import type { OAuthStateCodec } from './oauth-state.js';
 import type { StatelessDcrClientStore } from './stateless-client-store.js';
 import type { Config } from './types.js';
+import { VERSION } from './version.js';
 import {
   createChainedTokenVerifier,
   createOidcVerifier,
@@ -170,8 +171,6 @@ export function createOAuthCallbackHandler(stateCodec: OAuthStateCodec, clientSt
     res.redirect(302, target.toString());
   };
 }
-
-const VERSION = process.env.npm_package_version ?? '0.1.0';
 
 // CF injects VCAP_APPLICATION with the app's public routes.
 // Falls back to localhost for local dev.

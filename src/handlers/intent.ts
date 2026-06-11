@@ -8,6 +8,7 @@ import {
   ListLanguagesSchema,
   ListTextsSchema,
   SetTranslationSchema,
+  TOOLS,
 } from './tools.js';
 
 function formatError(e: unknown): string {
@@ -30,7 +31,7 @@ export function registerTranslationTools(server: McpServer, config: Config, user
   // ── TranslateListLanguages ────────────────────────────────────────────────
   server.tool(
     'TranslateListLanguages',
-    'List all languages installed on the SAP system.',
+    TOOLS.TranslateListLanguages.description,
     ListLanguagesSchema.shape,
     async () => {
       try {
@@ -44,101 +45,81 @@ export function registerTranslationTools(server: McpServer, config: Config, user
   );
 
   // ── TranslateListTexts ────────────────────────────────────────────────────
-  server.tool(
-    'TranslateListTexts',
-    'List all translatable text elements of an SAP object (keys, types, source texts).',
-    ListTextsSchema.shape,
-    async (args) => {
-      try {
-        const texts = await client.listTexts({
-          target_type: args.target_type,
-          object_name: args.object_name,
-          language: args.language,
-          text_pool_owner_type: args.text_pool_owner_type,
-        });
-        return { content: [{ type: 'text', text: json(texts) }] };
-      } catch (e) {
-        log.error('TranslateListTexts failed', { err: (e as Error).message });
-        return { content: [{ type: 'text', text: formatError(e) }], isError: true };
-      }
-    },
-  );
+  server.tool('TranslateListTexts', TOOLS.TranslateListTexts.description, ListTextsSchema.shape, async (args) => {
+    try {
+      const texts = await client.listTexts({
+        target_type: args.target_type,
+        object_name: args.object_name,
+        language: args.language,
+        text_pool_owner_type: args.text_pool_owner_type,
+      });
+      return { content: [{ type: 'text', text: json(texts) }] };
+    } catch (e) {
+      log.error('TranslateListTexts failed', { err: (e as Error).message });
+      return { content: [{ type: 'text', text: formatError(e) }], isError: true };
+    }
+  });
 
   // ── TranslateGetTexts ─────────────────────────────────────────────────────
-  server.tool(
-    'TranslateGetTexts',
-    'Retrieve the translations of an SAP object in a given language.',
-    GetTranslationSchema.shape,
-    async (args) => {
-      try {
-        const result = await client.getTranslation({
-          target_type: args.target_type,
-          object_name: args.object_name,
-          language: args.language,
-          field_name: args.field_name,
-          fixed_value: args.fixed_value,
-          message_number: args.message_number,
-          text_symbol_id: args.text_symbol_id,
-          text_pool_owner_type: args.text_pool_owner_type,
-          subobject_name: args.subobject_name,
-          position: args.position,
-        });
-        return { content: [{ type: 'text', text: json(result) }] };
-      } catch (e) {
-        log.error('TranslateGetTexts failed', { err: (e as Error).message });
-        return { content: [{ type: 'text', text: formatError(e) }], isError: true };
-      }
-    },
-  );
+  server.tool('TranslateGetTexts', TOOLS.TranslateGetTexts.description, GetTranslationSchema.shape, async (args) => {
+    try {
+      const result = await client.getTranslation({
+        target_type: args.target_type,
+        object_name: args.object_name,
+        language: args.language,
+        field_name: args.field_name,
+        fixed_value: args.fixed_value,
+        message_number: args.message_number,
+        text_symbol_id: args.text_symbol_id,
+        text_pool_owner_type: args.text_pool_owner_type,
+        subobject_name: args.subobject_name,
+        position: args.position,
+      });
+      return { content: [{ type: 'text', text: json(result) }] };
+    } catch (e) {
+      log.error('TranslateGetTexts failed', { err: (e as Error).message });
+      return { content: [{ type: 'text', text: formatError(e) }], isError: true };
+    }
+  });
 
   // ── TranslateCompare ──────────────────────────────────────────────────────
-  server.tool(
-    'TranslateCompare',
-    'Compare translations between two languages for an SAP object.',
-    CompareTranslationsSchema.shape,
-    async (args) => {
-      try {
-        const result = await client.compareTranslations({
-          target_type: args.target_type,
-          object_name: args.object_name,
-          source_language: args.source_language,
-          target_language: args.target_language,
-          position: args.position,
-        });
-        return { content: [{ type: 'text', text: json(result) }] };
-      } catch (e) {
-        log.error('TranslateCompare failed', { err: (e as Error).message });
-        return { content: [{ type: 'text', text: formatError(e) }], isError: true };
-      }
-    },
-  );
+  server.tool('TranslateCompare', TOOLS.TranslateCompare.description, CompareTranslationsSchema.shape, async (args) => {
+    try {
+      const result = await client.compareTranslations({
+        target_type: args.target_type,
+        object_name: args.object_name,
+        source_language: args.source_language,
+        target_language: args.target_language,
+        position: args.position,
+      });
+      return { content: [{ type: 'text', text: json(result) }] };
+    } catch (e) {
+      log.error('TranslateCompare failed', { err: (e as Error).message });
+      return { content: [{ type: 'text', text: formatError(e) }], isError: true };
+    }
+  });
 
   // ── TranslateSetTexts ─────────────────────────────────────────────────────
-  server.tool(
-    'TranslateSetTexts',
-    'Write or update translations for an SAP object.',
-    SetTranslationSchema.shape,
-    async (args) => {
-      try {
-        const result = await client.setTranslation({
-          target_type: args.target_type,
-          object_name: args.object_name,
-          language: args.language,
-          transport: args.transport,
-          texts: args.texts,
-          field_name: args.field_name,
-          fixed_value: args.fixed_value,
-          message_number: args.message_number,
-          text_symbol_id: args.text_symbol_id,
-          text_pool_owner_type: args.text_pool_owner_type,
-          subobject_name: args.subobject_name,
-          position: args.position,
-        });
-        return { content: [{ type: 'text', text: json(result) }] };
-      } catch (e) {
-        log.error('TranslateSetTexts failed', { err: (e as Error).message });
-        return { content: [{ type: 'text', text: formatError(e) }], isError: true };
-      }
-    },
-  );
+  server.tool('TranslateSetTexts', TOOLS.TranslateSetTexts.description, SetTranslationSchema.shape, async (args) => {
+    try {
+      const result = await client.setTranslation({
+        target_type: args.target_type,
+        object_name: args.object_name,
+        language: args.language,
+        transport: args.transport,
+        texts: args.texts,
+        field_name: args.field_name,
+        fixed_value: args.fixed_value,
+        message_number: args.message_number,
+        text_symbol_id: args.text_symbol_id,
+        text_pool_owner_type: args.text_pool_owner_type,
+        subobject_name: args.subobject_name,
+        position: args.position,
+      });
+      return { content: [{ type: 'text', text: json(result) }] };
+    } catch (e) {
+      log.error('TranslateSetTexts failed', { err: (e as Error).message });
+      return { content: [{ type: 'text', text: formatError(e) }], isError: true };
+    }
+  });
 }

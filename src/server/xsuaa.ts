@@ -2,7 +2,7 @@
  * XSUAA OAuth proxy for MCP-native clients.
  *
  * Ported from arc-1 (ClementRingot/arc-1, src/server/xsuaa.ts), adapted for
- * sap-translator branding and its 3-scope model (read / write / admin).
+ * sap-translator's authentication-only model (no XSUAA scopes / role collections).
  *
  * Enables Claude Desktop, Cursor, VS Code, and MCP Inspector to authenticate
  * via BTP XSUAA using the MCP specification's OAuth discovery (RFC 8414).
@@ -97,6 +97,14 @@ export function createXsuaaTokenVerifier(credentials: XsuaaCredentials): (token:
  */
 export function createOidcVerifier(issuer: string, audience?: string): (token: string) => Promise<AuthInfo> {
   const issuerNorm = issuer.replace(/\/$/, '');
+  if (!audience) {
+    // Without an audience, jwtVerify only checks the issuer/signature — ANY token
+    // that issuer minted (for any resource) is accepted. Set OIDC_AUDIENCE to bind
+    // tokens to this server.
+    getLogger().warn(
+      'OIDC_AUDIENCE is not set — JWT audience is NOT validated. Any token from the configured issuer will be accepted regardless of its intended audience. Set OIDC_AUDIENCE to restrict tokens to this server.',
+    );
+  }
   let jwks: ReturnType<typeof createRemoteJWKSet> | undefined;
 
   return async (token: string): Promise<AuthInfo> => {

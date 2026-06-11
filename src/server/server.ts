@@ -4,8 +4,7 @@ import { registerTranslationTools } from '../handlers/intent.js';
 import { startHttpServer } from './http.js';
 import { getLogger } from './logger.js';
 import type { Config } from './types.js';
-
-const VERSION = process.env.npm_package_version ?? '0.1.0';
+import { VERSION } from './version.js';
 
 export async function createAndStartServer(config: Config): Promise<void> {
   const log = getLogger();
