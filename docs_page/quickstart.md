@@ -4,7 +4,7 @@ Get from zero to translating in three steps. This assumes **local development** 
 
 ## 1. Install the ABAP service
 
-Import the three objects from [`abap/`](../abap) into your SAP system and register the SICF node. Full details: **[ABAP service setup](./abap-service-setup.md)**.
+Import the three objects from [`abap/`](../abap) into your SAP system, create the ABAP **HTTP service** (handler class `ZCL_I18N_SERVICE`), and **enable** it in `UCON_HTTP_SERVICES` (S/4HANA 2022+). Full details: **[ABAP service setup](./abap-service-setup.md)**.
 
 Smoke-test it:
 

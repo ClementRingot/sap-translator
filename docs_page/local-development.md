@@ -35,7 +35,7 @@ curl -u "$SAP_USERNAME:$SAP_PASSWORD" -H 'Content-Type: application/json' \
   -d '{}'
 ```
 
-If this works but the MCP tool doesn't, the problem is in the server config (path, auth). If this fails, the problem is in SAP (SICF node, authorization, XCO availability).
+If this works but the MCP tool doesn't, the problem is in the server config (path, auth). If this fails, the problem is in SAP (HTTP service not enabled in `UCON_HTTP_SERVICES`, authorization, or XCO availability).
 
 ## Project layout
 

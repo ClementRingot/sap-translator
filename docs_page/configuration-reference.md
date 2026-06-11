@@ -6,7 +6,7 @@ All configuration is via environment variables (read in `src/server/config.ts`).
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `SAP_I18N_SERVICE_PATH` | `/sap/bc/http/sap/zi18n_service` | SICF path of the `ZCL_I18N_SERVICE` handler. Must match the SICF node you created. |
+| `SAP_I18N_SERVICE_PATH` | `/sap/bc/http/sap/zi18n_service` | URL path of the `ZCL_I18N_SERVICE` HTTP service. Must match the service URL shown in ADT. |
 | `SAP_URL` | — | SAP base URL for **local dev** (direct connection). |
 | `SAP_USERNAME` | — | SAP user for local dev. |
 | `SAP_PASSWORD` | — | SAP password for local dev. |

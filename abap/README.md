@@ -30,16 +30,20 @@ These files use the **source-format** naming abapGit understands (`*.clas.abap`,
 2. Create class `ZCL_VSP_UTILS`, paste the source, activate.
 3. Create class `ZCL_I18N_SERVICE`, paste the source, activate.
 
-## Expose it in SICF
+## Expose it as an HTTP service
 
-The handler reads the **action from the last segment of the URL path** (e.g. `…/zi18n_service/list_languages`) and all parameters from the **JSON request body**.
+This is an ABAP **HTTP service** (`IF_HTTP_SERVICE_EXTENSION`), **not** a hand-made SICF node. On S/4HANA 2022+ you create it in ADT and enable it in `UCON_HTTP_SERVICES` — no ICF node is created. The handler reads the **action from the last segment of the URL path** (e.g. `…/zi18n_service/list_languages`) and all parameters from the **JSON request body**.
 
-1. Transaction **SICF** → create a new service node under `default_host/sap/bc/http/sap/` named `zi18n_service` (this yields the default path `/sap/bc/http/sap/zi18n_service`).
-2. Assign **`ZCL_I18N_SERVICE`** as the handler for the node.
-3. Activate the service.
-4. Make sure the path matches the MCP server's `SAP_I18N_SERVICE_PATH` env var.
+1. In ADT: **New ▸ Other ABAP Repository Object ▸ HTTP service**. Give it a package/name/description.
+2. Set its **Handler class** to **`ZCL_I18N_SERVICE`** (let the wizard generate the class, then paste in the implementation — see step 3 of "Manual" above).
+3. **Enable** it:
+   - On-premise **S/4HANA 2022+** → transaction **`UCON_HTTP_SERVICES`** → find the service → **Enable** (disabled by default → HTTP 403 until enabled).
+   - On-premise **pre-2022** → activate the generated node in **SICF**.
+   - **ABAP Cloud** → assign the service to a communication scenario (activates automatically).
+   - After an abapGit import → click **Publish Locally** in the HTTP service editor.
+4. Note the service URL and set the MCP server's `SAP_I18N_SERVICE_PATH` (or the `mta.yaml` property) to match — default `/sap/bc/http/sap/zi18n_service`.
 
-> Whatever path you choose, set `SAP_I18N_SERVICE_PATH` (or the `mta.yaml` property) to match.
+👉 Full walkthrough: [`docs_page/abap-service-setup.md`](../docs_page/abap-service-setup.md).
 
 ## Wire contract (for reference / testing)
 

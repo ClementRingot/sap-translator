@@ -8,7 +8,7 @@
 ## Start here
 
 1. **[Quickstart](./quickstart.md)** — the fastest path to a working setup.
-2. **[ABAP service setup](./abap-service-setup.md)** — import the class and register the SICF node.
+2. **[ABAP service setup](./abap-service-setup.md)** — import the class and publish/enable the HTTP service.
 3. **[MCP tools usage](./mcp-usage.md)** — the 5 tools, with examples.
 
 ## Reference

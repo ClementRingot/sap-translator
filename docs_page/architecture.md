@@ -16,7 +16,7 @@
 
 Two independently deployable halves:
 
-- **ABAP side** — `ZCL_I18N_SERVICE` + `ZCL_VSP_UTILS` + `ZIF_VSP_SERVICE`, exposed via SICF. Does the real translation work through the XCO i18n generation APIs.
+- **ABAP side** — `ZCL_I18N_SERVICE` + `ZCL_VSP_UTILS` + `ZIF_VSP_SERVICE`, exposed as an ABAP HTTP service (`IF_HTTP_SERVICE_EXTENSION`, enabled in `UCON_HTTP_SERVICES`). Does the real translation work through the XCO i18n generation APIs.
 - **Node side** — this repo. Authenticates the caller, propagates identity, and maps MCP tool calls to HTTP calls.
 
 ## Request lifecycle (BTP, http-streamable)

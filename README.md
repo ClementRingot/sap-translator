@@ -20,7 +20,7 @@ It is built the same way as [**ARC-1**](https://github.com/marianfoo/arc-1) (sam
 
 There are **two halves** to a working setup:
 
-1. **The ABAP service** — a handler class (`ZCL_I18N_SERVICE`) that you import into your SAP system and expose in SICF. It does the actual translation work using the XCO i18n APIs. → see [`abap/`](./abap) and [docs: ABAP service setup](./docs_page/abap-service-setup.md).
+1. **The ABAP service** — a handler class (`ZCL_I18N_SERVICE`) that you import into your SAP system and expose as an ABAP **HTTP service**. It does the actual translation work using the XCO i18n APIs. → see [`abap/`](./abap) and [docs: ABAP service setup](./docs_page/abap-service-setup.md).
 2. **The MCP server** — this Node.js project. It authenticates the caller, propagates their identity to SAP, and translates MCP tool calls into HTTP calls to the ABAP service.
 
 ---
@@ -57,7 +57,7 @@ These are XCO **semantic** literals, not DDIC short codes:
 ## Prerequisites
 
 - An SAP system with the **XCO i18n APIs** available (S/4HANA 2022+ / ABAP Platform 2022+ / ABAP Cloud) and the new HTTP handler model (`IF_HTTP_SERVICE_EXTENSION`).
-- Authorization to import a class and create an SICF node on that system.
+- Authorization to import a class, create an ABAP **HTTP service** (ADT), and enable it via `UCON_HTTP_SERVICES`.
 - **Node.js 22.x** to run the MCP server.
 - For production: an **SAP BTP** subaccount (Cloud Foundry) with XSUAA, Destination and Connectivity services.
 
@@ -73,7 +73,7 @@ The ABAP objects to copy into your **target SAP system** live in [`abap/`](./aba
 | [`abap/zcl_vsp_utils.clas.abap`](./abap/zcl_vsp_utils.clas.abap) | `ZCL_VSP_UTILS` | JSON helpers + parameter extraction. |
 | [`abap/zcl_i18n_service.clas.abap`](./abap/zcl_i18n_service.clas.abap) | `ZCL_I18N_SERVICE` | The HTTP handler (`IF_HTTP_SERVICE_EXTENSION`). |
 
-Import them (abapGit, or copy/paste into SE24/ADT in the order above), then register `ZCL_I18N_SERVICE` as an SICF service at the path you'll point the MCP at (default `/sap/bc/http/sap/zi18n_service`).
+Import them (abapGit, or via ADT in the order above), create an ABAP **HTTP service** whose handler class is `ZCL_I18N_SERVICE`, and **enable** it in `UCON_HTTP_SERVICES` (S/4HANA 2022+). Point the MCP at its URL (default `/sap/bc/http/sap/zi18n_service`).
 
 👉 Full step-by-step instructions: **[docs: ABAP service setup](./docs_page/abap-service-setup.md)**.
 
@@ -155,7 +155,7 @@ cf deploy mta_archives/sap-translator_0.1.0.mtar
 
 | Variable | Purpose |
 |----------|---------|
-| `SAP_I18N_SERVICE_PATH` | SICF path of the `ZCL_I18N_SERVICE` handler (default `/sap/bc/http/sap/zi18n_service`). |
+| `SAP_I18N_SERVICE_PATH` | URL path of the `ZCL_I18N_SERVICE` HTTP service (default `/sap/bc/http/sap/zi18n_service`). |
 | `SAP_URL` / `SAP_USERNAME` / `SAP_PASSWORD` / `SAP_CLIENT` | Direct connection for **local dev**. |
 | `SAP_BTP_DESTINATION` | BasicAuth Destination — system-level calls / fallback (BTP). |
 | `SAP_BTP_PP_DESTINATION` | PrincipalPropagation Destination — per-user calls (BTP). |
@@ -182,7 +182,7 @@ The [`docs_page/`](./docs_page) folder holds the long-form guides:
 |-------|--|
 | [Index](./docs_page/index.md) | Documentation home. |
 | [Quickstart](./docs_page/quickstart.md) | Fastest path to a working setup. |
-| [ABAP service setup](./docs_page/abap-service-setup.md) | Import the class & register SICF. |
+| [ABAP service setup](./docs_page/abap-service-setup.md) | Import the class & publish the HTTP service. |
 | [MCP tools usage](./docs_page/mcp-usage.md) | Every tool, with examples. |
 | [Configuration reference](./docs_page/configuration-reference.md) | All env vars in detail. |
 | [Authentication](./docs_page/authentication.md) | Auth model & options. |
